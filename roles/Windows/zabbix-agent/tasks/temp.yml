@@ -1,0 +1,5 @@
+---
+# Return service path with PowerShell and sed.
+
+- name: Run powershell command to get the service path.
+  win_command: powershell.exe Get-WmiObject win32_service | ?{$_.Name -like } | select PathName

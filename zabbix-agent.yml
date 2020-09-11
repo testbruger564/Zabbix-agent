@@ -1,0 +1,32 @@
+---
+
+- name: Install or upgrade Zabbix agent.
+  hosts: all
+  become: yes
+
+  roles:
+
+  - name: Installing Zabbix agent on RHEL.
+    include_role:
+      name: linux/zabbix-agent
+    when: ansible_os_family == 'RedHat'
+    # Test
+    # when: ansible_facts['os_family'] | lower == 'redhat'
+    # when: ansible_os_family | lower == 'redhat'
+
+  - name: Installing Zabbix agent on Windows.
+    include_role:
+      name: windows/zabbix-agent
+    when: ansible_os_family == 'Windows'
+    # Test
+    # when: ansible_facts['os_family'] | lower == 'windows'
+    # when: ansible_os_family | lower == 'windows'
+
+# No registration (Run zabbix-create-host.yml to create host on the zabbix server):
+# ansible-playbook Zabbix-agent.yml -i environment/[miljø]/hosts -u adminuser -K
+
+# No registration (Host is created or updated on the zabbix server):
+# ansible-playbook Zabbix-agent.yml -i environment/[miljø]/hosts -u adminuser -K -e "create_host=true"
+
+# Registration via auto registration:
+# ansible-playbook Zabbix-agent.yml -i environment/[miljø]/hosts -u adminuser -K -e "autoregistration=true" --ask-vault-pass

@@ -1,0 +1,145 @@
+---
+
+    # Imports the variables for the chosen domain.
+
+    - name: Importing variables for Azure.
+      include_vars: main.yml
+      when: DC == "azure" or DC == "Azure"
+
+    - name: Importing variables for on premise.
+      include_vars: on_premise.yml
+      when: DC == "on-premise" or DC == "On-premise"
+
+    # Downloading the Zabbix agent file, stopping the zabbix agent service and uninstalling the agent.
+
+    - name: Downloading zabbix agent zip file.
+      win_get_url:
+        url: "{{ zabbix_agent_url }}"
+        dest: "{{ zabbix_agent_zip_path }}"
+        checksum: "{{ sha256_checksum }}"
+        checksum_algorithm: sha256
+      when: DC == "azure" or DC == "Azure"
+
+    # On premise repository
+
+    # TODO create for on premise.
+
+    - name: Stopping zabbix-agent service
+      win_service:
+        name: "{{ zabbix_agent_windows_service }}"
+        state: stopped
+
+    - name: Uninstall zabbix agent
+      win_command: "{{ zabbix_service_exe.stdout }} --config {{ zabbix_service_conf.stdout }} --uninstall"
+
+    - name: unzip zabbix agent file.
+      win_unzip:
+        src: "{{ zabbix_agent_zip_path }}"
+        dest: "{{ zabbix_agent_directory }}"
+
+    # Generate PSK key
+
+    - name: Generate PSK key
+      block:
+
+      - name: Create PSK file.
+        win_file:
+          path: "{{ zabbix_TLSPSKFile }}"
+          state: touch
+          modification_time: preserve
+          access_time: preserve
+
+      - name: fetching PSK file from the target.
+        fetch:
+          src: "{{ zabbix_TLSPSKFile }}"
+          dest: zabbix/temporary/{{ ansible_hostname }}
+          flat: yes
+
+      - name: Generate a PSK key on the Ansible master.
+        shell: "openssl rand -hex 32 > zabbix/temporary/{{ ansible_hostname }}"
+        delegate_to: localhost
+        become_user: "{{ local_user}}"
+
+      - name: Sending PSK file to target.
+        win_copy:
+          src: "zabbix/temporary/{{ ansible_hostname }}"
+          dest: "{{ zabbix_TLSPSKFile }}"
+
+      - name: Removing PSK file from ansible master.
+        file:
+          path: "zabbix/temporary/{{ ansible_hostname }}"
+          state: absent
+        delegate_to: localhost
+        become_user: "{{ local_user}}"
+
+      when: auto_registration == false
+
+    # Auto registration
+
+    - name: Auto registration
+      block:
+
+      - name: Create PSK file
+        win_file:
+          path: "{{ zabbix_TLSPSKFile }}"
+          state: touch
+          # modification_time: preserve
+          # access_time: preserve
+
+      - name: Import PSK identity and key values.
+        include_vars:
+          file: PSK_{{ environment }}.yml
+
+      - name: Set the value of PSK_identity to the vaule of PSK_identity_auto
+        set_fact:
+          PSK_identity: "{{ PSK_identity_auto }}"
+
+      - name: Adding the PSK_key vaule to the TLSPSKFile
+        win_copy:
+          content: "{{ PSK_key }}"
+          dest: "{{ zabbix_TLSPSKFile }}"
+
+      when: auto_registration == true
+
+# Changing the zabbix agent config file.
+# TODO Change so a template is used instead.
+
+    # - name: changing the zabbix_agentd.conf file.
+    #   win_lineinfile:
+    #     path: C:\Zabbix\zabbix_agent\conf\zabbix_agentd.conf
+    #     regexp: "{{ item.regexp }}"
+    #     line: "{{ item.line }}"
+    #     state: present
+    #   with_items:
+    #     - regexp: "^ServerActive=(?!{{ zabbix_server_address }})"
+    #       line: "ServerActive={{ zabbix_server_address }}"
+    #     - regexp: "Hostname=(?!{{ ansible_hostname }})"
+    #       line: "Hostname={{ ansible_hostname }}"
+    #     - regexp: "^TLSConnect=(?!psk)"
+    #       line: "TLSConnect=psk"
+    #     - regexp: "^TLSAccept=(?!psk)"
+    #       line: "TLSAccept=psk"
+    #     - regexp: "^TLSPSKIdentity=(?!PSK-{{ ansible_hostname }})"
+    #       line: "TLSPSKIdentity=PSK-{{ ansible_hostname }}"
+    #     - regexp: "^TLSPSKFile=(?!{{ zabbix_TLSPSKFile }})"
+    #       line: "TLSPSKFile={{ zabbix_TLSPSKFile }}"
+
+    - name: Editing the zabbix_agentd.conf file.
+      win_template:
+        src: "template/zabbix_agentd.conf.j2" # TODO Create template file and test task.
+        dest: 'C:\Zabbix\zabbix_agent\conf\zabbix_agentd.conf'
+        mode: 766
+        backup: yes
+
+# Installing the zabbix agent.
+
+    - name: Install zabbix agent
+      win_command: c:/zabbix/zabbix_agent/bin/zabbix_agentd.exe --config c:/zabbix/zabbix_agent/conf/zabbix_agentd.conf --install
+
+# Starting the zabbix agent service.
+
+    - name: start the zabbix agent service
+      win_service:
+        name: "{{ zabbix_agent_windows_service }}"
+        state: started
+        enabled: yes

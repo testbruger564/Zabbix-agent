@@ -1,0 +1,45 @@
+---
+# defaults file for zabbix
+
+# Zabbix agent version.
+zabbix_version: "5.0.0"
+
+# Zabbix agent sha256 checksum.
+sha256_checksum: "5e0d83b1fcc99164a0c8dedc8dfa676751bf9ee86b293452823ab91ef8983936"
+
+# Check for new zabbix agent version go to:
+# https://www.zabbix.com/download_agents
+
+# Zabbix server ip addess or FQDN.
+zabbix_server_address: zabbix.ccta.dk
+
+# Choose between Azure (with network access) or On-premise (without network access).
+DC: Azure
+
+
+
+# download destination.
+zabbix_agent_zip_path: 'c:\zabbix\{{ zabbix_agent_zip_package }}'
+
+# Unzip destination.
+zabbix_agent_directory: 'c:\Zabbix\zabbix_agent'
+
+# zabbix service name.
+zabbix_agent_windows_service: "Zabbix Agent"
+
+# TLSPSKFile location.
+zabbix_TLSPSKFile: 'C:\Zabbix\zabbix_agent\conf\zabbix_agentd.psk'
+
+# PSK_identity is equal to PSK-[fully qualified domain name of the host].
+PSK_identity: "PSK-{{ ansible_fqdn }}"
+
+# Autoregistration.
+
+# Auto registration is if the host should be registeret on the zabbix server automatically. [default: false]
+auto_registration: false
+
+# Choose what enviroment you want your host registered to. (prod, pre-prod, dev, test, sandbox)
+environment:
+
+# Local user
+# local_username: "{{ local_user.stdout }}"

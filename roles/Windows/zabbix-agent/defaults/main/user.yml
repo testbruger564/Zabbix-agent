@@ -1,0 +1,14 @@
+---
+# defaults file for zabbix
+
+# Zabbix agent version.
+zabbix_version: "5.0.0"
+
+# Zabbix agent sha256 checksum.
+sha256_checksum: "5e0d83b1fcc99164a0c8dedc8dfa676751bf9ee86b293452823ab91ef8983936"
+
+# Check for new zabbix agent version go to:
+# https://www.zabbix.com/download_agents
+
+# Zabbix server ip addess or FQDN.
+# zabbix_server_address: zabbix.ccta.dk # In group_vars/zabbi_agent

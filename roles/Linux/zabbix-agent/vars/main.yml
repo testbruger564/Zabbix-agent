@@ -1,0 +1,5 @@
+---
+# vars file for zabbix
+
+zabbix_agent_repo: "https://repo.zabbix.com/zabbix/{{ zabbix_version }}/rhel/{{ os_version }}/x86_64/zabbix-agent-{{ zabbix_release }}-1.el{{ os_version }}.x86_64.rpm"
+zabbix_agent2_repo: "https://repo.zabbix.com/zabbix/{{ zabbix_version }}/rhel/{{ os_version }}/x86_64/zabbix-agent2-{{ zabbix_release }}-1.el{{ os_version }}.x86_64.rpm"

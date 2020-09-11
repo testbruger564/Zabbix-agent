@@ -1,0 +1,40 @@
+---
+# defaults file for zabbix
+
+# Choose between Azure (with network access) or On-premise (without network access).
+DC: Azure
+
+# Download destination.
+zabbix_agent_zip_path: 'c:\zabbix\{{ zabbix_agent_zip_package }}'
+
+# Unzip destination.
+zabbix_agent_directory: 'c:\Zabbix\zabbix_agent'
+
+# zabbix service name.
+zabbix_agent_windows_service: "Zabbix Agent"
+
+# TLSPSKFile location.
+zabbix_TLSPSKFile: 'C:\Zabbix\zabbix_agent\conf\zabbix_agentd.psk'
+
+# PSK_identity is equal to PSK-[fully qualified domain name of the host].
+PSK_identity: "PSK-{{ ansible_fqdn }}"
+
+# Autoregistration.
+
+# Auto registration is if the host should be registeret on the zabbix server automatically. [default: false]
+auto_registration: false
+
+# # Choose what enviroment you want your host registered to. (prod, pre-prod, dev, test, sandbox)
+# environment:
+
+# Local user
+# local_username: "{{ local_user.stdout }}"
+
+
+# Create or upgrade host on zabbix server with API.
+
+# Choose if the host should be created/upgraded on the zabbix server. [default: false]
+create_host: false
+
+# Zabbix server url. used for API calls.
+# zabbix_server_url:

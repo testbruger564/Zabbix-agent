@@ -1,0 +1,25 @@
+---
+
+- name: Create a host or update an existing hosts info on zabbix server.
+  zabbix_host:
+    server_url: "{{ zabbix_server_url }}"
+    login_user: "{{ zabbix_username }}"
+    login_password: "{{ zabbix_password }}"
+    host_name: "{{ ansible_fqdn }}"
+    visible_name: "{{ ansible_fqdn }}"
+    host_groups:
+    - default
+    link_templates:
+    - default
+    status: enabled
+    state: present
+    interfaces:
+      - type: 1
+        main: 1
+        useip: 1
+        ip: "{{ ansible_default_ipv4 }}"
+        dns: "{{ ansible_fqdn }}"
+    tls_psk_identity: "PSK-{{ ansible_fqdn }}"
+    tls_connect: 2
+    tls_accept: 2
+    tls_psk: "{{ zabbix_TLSPSKFile }}"

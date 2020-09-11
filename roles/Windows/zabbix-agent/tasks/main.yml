@@ -1,0 +1,91 @@
+---
+# tasks file for zabbix
+
+# TODO Tjek om hosten er Windows eller Linux
+
+- name: Check if zabbix agent service is installed.
+  win_service:
+    name: "Zabbix Agent"
+  register: zabbix_agent_info
+
+- name: Create directory structure if it dont exist.
+  win_file:
+    path: c:/Zabbix
+    state: directory
+
+- name: Getting zabbix agent version and make sure the service is started and enabled.
+  block:
+
+    - name: Saving zabbix_agent_info path to a file
+      win_copy:
+        content: "{{ zabbix_agent_info }}"
+        dest: 'C:\Zabbix\{{ ansible_hostname }}.txt'
+
+    - name: Senting the {{ ansible_hostname }}.txt file to ansible master.
+      fetch:
+        src: 'C:\Zabbix\{{ ansible_hostname }}.txt'
+        dest: 'zabbix-agent-Windows/host/{{ ansible_hostname }}/input.txt'
+        flat: yes
+
+    - name: filtering the zabbix path.
+      block:
+      - name: filter zabbix/host file. service
+        shell: sed 's/zabbix_agentd.exe.*/zabbix_agentd.exe/' zabbix-agent-Windows/host/{{ ansible_hostname }}/input.txt | sed 's/.*c:/C:/' | sed 's/.*C:/C:/' | sed 's/\\\\/\//g' > zabbix-agent-Windows/host/{{ ansible_hostname }}/output_service.txt
+
+      - name: filter zabbix/host file. exe
+        shell: sed 's/zabbix_agentd.exe.*/zabbix_agentd.exe/' zabbix-agent-Windows/host/{{ ansible_hostname }}/input.txt | sed 's/.*c:/C:/' | sed 's/.*C:/C:/' | sed 's/\\\\/\//g' | sed -r 's/^|$/"/g' > zabbix-agent-Windows/host/{{ ansible_hostname }}/output_exe.txt
+
+      - name: filter zabbix/host file. config
+        shell: sed 's/.*--config \\//' zabbix-agent-Windows/host/{{ ansible_hostname }}/input.txt | sed 's/zabbix_agentd.conf\\.*/zabbix_agentd.conf/' | sed 's/\\\\/\//g' | sed 's/"//' | sed -r 's/^|$/"/g' > zabbix-agent-Windows/host/{{ ansible_hostname }}/output_conf.txt
+      delegate_to: localhost
+
+    - name: saves the files content service in a variable called zabbix_service.
+      command: cat zabbix-agent-Windows/host/{{ ansible_hostname }}/output_service.txt
+      delegate_to: localhost
+      register: zabbix_service
+
+    - name: saves the files content exe in a varaible called zabbix_service_exe.
+      command: cat zabbix-agent-Windows/host/{{ ansible_hostname }}/output_exe.txt
+      delegate_to: localhost
+      register: zabbix_service_exe
+
+    - name: saves the files content conf in a varaible called zabbix_service_conf.
+      command: cat zabbix-agent-Windows/host/{{ ansible_hostname }}/output_conf.txt
+      delegate_to: localhost
+      register: zabbix_service_conf
+
+    - name: Get zabbix agent version.
+      win_file_version:
+        path: "{{ zabbix_service.stdout }}"
+      register: zabbix_agent_version
+
+    - name: Check if zabbix agent service is started.
+      win_service:
+        name: "Zabbix Agent"
+        state: started
+        start_mode: auto
+
+    - name: Removing the file {{ ansible_hostname }}.txt from the host.
+      win_file:
+        path: 'C:\Zabbix\{{ ansible_hostname }}.txt'
+        state: absent
+
+    - name: Removing the output files from the Ansible master.
+      file:
+        path: "zabbix-agent-Windows/host/{{ ansible_hostname }}"
+        state: absent
+
+  when: zabbix_agent_info.exists
+
+- name: No changes to be made.
+  debug:
+    msg: "Zabbix agent versionen is {{ zabbix_version }} or newer"
+  when: zabbix_agent_info.exists and zabbix_agent_version.win_file_version.product_version >= "{{ zabbix_version }}" # CHECK zabbix_agent_version.win_file_version.product_version
+
+- name: Zabbix agent is less than {{ zabbix_version }}.
+  include_tasks: upgrade.yml
+  when: zabbix_agent_info.exists and zabbix_agent_version.win_file_version.product_version < "{{ zabbix_version }}"
+
+- name: The Zabbix agent is not installed.
+  include_tasks: install.yml
+  when: zabbix_agent_info.exists == false

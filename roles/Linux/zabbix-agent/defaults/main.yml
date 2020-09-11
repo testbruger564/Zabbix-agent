@@ -1,0 +1,53 @@
+---
+# defaults file for zabbix
+
+# Zabbix major release version
+zabbix_version: "5.0"
+
+# Zabbix minor release version
+zabbix_release: "5.0.0"
+
+# Zabbix server ip addess or FQDN.
+zabbix_server_address: zabbix.ccta.dk
+
+# Chose between Azure (with network access) or On-premise (without network access).
+DC: Azure
+
+# OS major version.
+os_version: "{{ ansible_distribution_major_version }}"
+
+# Sets the zabbix_agent_version value to be equal to 'zabbix_agent2' if Url_check.status is equal to 200, else is the variable set to 'zabbix_agentd'
+zabbix_agent_version: "{{ 'zabbix_agent2' if url_check.status == 200 else 'zabbix_agentd' }}"
+
+# Sets the zabbix_agent_service value to be equal to 'zabbix-agent2' if Url_check.status is equal to 200, else is the variable set to 'zabbix-agent'
+zabbix_agent_service: "{{ 'zabbix-agent2' if url_check.status == 200 else 'zabbix-agent' }}"
+
+# TLSPSKFile location.
+zabbix_TLSPSKFile: /etc/zabbix/{{zabbix_agent_version}}.psk
+
+# PSK_identity is equal to PSK-[fully qualified domain name of the host].
+PSK_identity: "PSK-{{ ansible_fqdn }}"
+
+# Get the zabbix agent type if it is installed. if no agent is installed the variable is equal to none.
+zabbix_agent_installed: "{{ 'zabbix-agent2' if zabbix_agentv2.changed == true else 'zabbix-agent' if zabbix_agentv1.changed == true else 'none' }}"
+
+# Autoregistration.
+
+# Auto registration is if the host should be registeret on the zabbix server automatically. [default: false]
+auto_registration: false
+
+# # Choose what enviroment you want your host registered to. (prod, pre-prod, dev, test, sandbox)
+# environment:
+
+# Local username.
+# local_username: "{{ local_user.stdout }}"
+
+
+
+# Create or upgrade host on zabbix server with API.
+
+# Choose if the host should be created/upgraded on the zabbix server. [default: false]
+create_host: false
+
+# Zabbix server url. used for API calls.
+# zabbix_server_url:

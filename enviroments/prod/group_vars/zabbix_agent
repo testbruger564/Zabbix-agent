@@ -1,0 +1,7 @@
+---
+
+miljø: prod
+
+zabbix_server_address:
+
+zabbix_server_url:

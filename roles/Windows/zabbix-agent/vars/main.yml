@@ -1,0 +1,8 @@
+---
+# vars file for zabbix
+
+# Zabbix agent zip file name.
+zabbix_agent_zip_package: zabbix_agent-{{ zabbix_version }}-windows-amd64-openssl.zip
+
+# Download source
+zabbix_agent_url: "https://www.zabbix.com/downloads/{{ zabbix_version }}/{{ zabbix_agent_zip_package }}"

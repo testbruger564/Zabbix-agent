@@ -1,0 +1,289 @@
+# ---
+
+# # Imports the variables for the chosen domain.
+
+# - name: Importing variables for Azure.
+#   include_vars: main.yml
+#   when: DC == "azure" or DC == "Azure"
+
+# - name: Importing variables for on premise.
+#   include_vars: on_premise.yml
+#   when: DC == "on-premise" or DC == "On-premise"
+
+# # Checks if the zabbix agent repository for Azure is available.
+
+# - name: Check if the zabbix agent is available.
+#   block:
+
+#   - name: Checks if the zabbix agent version 2 is available.
+#     uri:
+#       url: "{{ zabbix_agent2_repo }}"
+#     register: url_check
+#     ignore_errors: yes
+
+#   - name: Installing zabbix agent version 2.
+#     package:
+#       name: "{{ zabbix_agent2_repo }}"
+#       state: present
+#     when: url_check.status == 200
+
+#   - name: Checks if the zabbixagent version 1 is available.
+#     uri:
+#       url: "{{ zabbix_agent_repo }}"
+#     register: url_check2
+#     ignore_errors: yes
+#     when: url_check.status == 404
+
+#   - name: Installing zabbix agent version 1.
+#     package:
+#       name: "{{ zabbix_agent_repo }}"
+#       state: present
+#     when: url_check.status == 404 and url_check2.status == 200
+
+#   - name: The zabbix agent is not available on the given repositories.
+#     fail:
+#       msg: The zabbix agent is not available on the given repositories, check if the zabbix_agent_repo and zabbix_agent2_repo values are correct.
+#     when: url_check.status == 404 and url_check2.status == 404
+
+#   when: DC == "azure" or DC == "Azure"
+
+# # Checks if the zabbix agent repository for on premise is available.
+
+# - name: Check if the zabbix agent is available.
+#   block:
+
+#   - name: Checks if the zabbix agent version is available.
+#     uri:
+#       url: "{{ zabbix_agent_repo }}"
+#     register: on_premise_url
+
+#   - name: Installing zabbix agent.
+#     package:
+#       name: "{{ zabbix_agent_repo}}"
+#       state: present
+#     when: on_premise_url.status == 200
+
+#   when: DC == "on-premise" or DC == "On-premise"
+
+
+# # Checks if a psk file exists.
+# # If the psk file doesn't exist, then it is created and a generated PSK key gets added to the file.
+
+# - name: Create PSK file.
+#   file:
+#     path: "{{ zabbix_TLSPSKFile }}"
+#     state: touch
+#     modification_time: preserve
+#     access_time: preserve
+
+# - name: fetching PSK file from the target.
+#   fetch:
+#     src: "{{ zabbix_TLSPSKFile }}"
+#     dest: zabbix-agent-Linux/temporary/{{ ansible_hostname }}
+#     flat: yes
+
+# - name: Generate a PSK key on the Ansible master.
+#   shell: "openssl rand -hex 32 > zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+#   delegate_to: localhost
+#   become_user: "{{ local_user}}"
+
+# - name: Sending PSK file to target.
+#   copy:
+#     src: "zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+#     dest: "{{ zabbix_TLSPSKFile }}"
+
+# - name: Removing PSK file from ansible master.
+#   file:
+#     path: "zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+#     state: absent
+#   delegate_to: localhost
+#   become_user: "{{ local_user}}"
+
+
+# # Edits the zabbix agent config file and restarts the service.
+
+# - name: Editing the {{ zabbix_agent_version }}.conf file.
+#   lineinfile:
+#     path: "/etc/zabbix/{{ zabbix_agent_version }}.conf"
+#     regexp: "{{ item.regexp }}"
+#     line: "{{ item.line }}"
+#     state: present
+#   with_items:
+#     - regexp: "^ServerActive=(?!{{ zabbix_server_address }})"
+#       line: "ServerActive={{ zabbix_server_address }}"
+#     - regexp: "Hostname=(?!{{ ansible_hostname }})"
+#       line: "Hostname={{ ansible_hostname }}"
+#     - regexp: "^TLSConnect=(?!psk)"
+#       line: "TLSConnect=psk"
+#     - regexp: "^TLSAccept=(?!psk)"
+#       line: "TLSAccept=psk"
+#     - regexp: "^TLSPSKIdentity=(?!PSK-{{ ansible_hostname }})"
+#       line: "TLSPSKIdentity=PSK-{{ ansible_hostname }}"
+#     - regexp: "^TLSPSKFile=(?!{{ zabbix_TLSPSKFile }})"
+#       line: "TLSPSKFile={{ zabbix_TLSPSKFile }}"
+#   register: zabbix_agent_conf
+
+# - name: Restarting the zabbix agent service.
+#   service:
+#     name: "{{ zabbix_agent_service }}"
+#     state: restarted
+#   when: zabbix_agent_conf.changed
+
+---
+
+# Imports the variables for the chosen domain.
+
+- name: Importing variables for Azure.
+  include_vars: main.yml
+  when: DC == "azure" or DC == "Azure"
+
+- name: Importing variables for on premise.
+  include_vars: on_premise.yml
+  when: DC == "on-premise" or DC == "On-premise"
+
+# Checks if the zabbix agent repository for Azure is available.
+
+- name: Check if the zabbix agent is available.
+  block:
+
+  - name: Checks if the zabbix agent version 2 is available.
+    uri:
+      url: "{{ zabbix_agent2_repo }}"
+    register: url_check_v2
+    failed_when: false
+
+  - name: Installing zabbix agent version 2.
+    package:
+      name: "{{ zabbix_agent2_repo }}"
+      state: present
+    when: url_check_v2.status == 200
+
+  - name: Checks if the zabbixagent version 1 is available.
+    uri:
+      url: "{{ zabbix_agent_repo }}"
+    register: url_check_v1
+    failed_when: false
+    when: url_check_v2.status == 404
+
+  - name: Installing zabbix agent version 1.
+    package:
+      name: "{{ zabbix_agent_repo }}"
+      state: present
+    when: url_check_v2.status == 404 and url_check_v1.status == 200
+
+  - name: The zabbix agent is not available on the given repositories.
+    fail:
+      msg: The zabbix agent is not available on the given repositories, check if the zabbix_agent_repo and zabbix_agent2_repo values are correct.
+    when: url_check_v2.status == 404 and url_check_v1.status == 404
+
+  when: DC == "azure" or DC == "Azure"
+
+# Checks if the zabbix agent repository for on premise is available.
+
+- name: Check if the zabbix agent is available.
+  block:
+
+  - name: Checks if the zabbix agent version is available.
+    uri:
+      url: "{{ zabbix_agent_repo }}"
+    register: on_premise_url
+
+  - name: Installing zabbix agent.
+    package:
+      name: "{{ zabbix_agent_repo}}"
+      state: present
+    when: on_premise_url.status == 200
+
+  when: DC == "on-premise" or DC == "On-premise"
+
+
+# TODO Make it possible to select between auto registration and manuel.
+# If auto registration is selected then the specific PSK identity and PSK key specified on the zabbix server is inserted in the zabbix agent configurations file.
+# If manuel is selected then a new psk key is generated and the psk identity is set to psk-[hostname], those values is then added to the zabbix agent configuration file.
+
+# Manuel registration
+
+- name: Generating PSK key for manuel registration.
+  block:
+
+  - name: Create PSK file.
+    file:
+      path: "{{ zabbix_TLSPSKFile }}"
+      state: touch
+      modification_time: preserve
+      access_time: preserve
+
+  - name: fetching PSK file from {{ ansible_fqdn }}.
+    fetch:
+      src: "{{ zabbix_TLSPSKFile }}"
+      dest: zabbix-agent-Linux/temporary/{{ ansible_hostname }}
+      flat: yes
+
+  # - name: Get the username runnig the deploy
+  #   command: whoami
+  #   delegate_to: localhost
+  #   become: false
+  #   register: local_user
+  #   changed_when: false
+
+  - name: Generate a PSK key on the Ansible master.
+    shell: "openssl rand -hex 32 > zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+    delegate_to: localhost
+    # become_user: "{{ local_username }}"
+
+  - name: Sending PSK file to {{ ansible_fqdn }}.
+    copy:
+      src: "zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+      dest: "{{ zabbix_TLSPSKFile }}"
+
+  - name: Removing PSK file from ansible master.
+    file:
+      path: "zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+      state: absent
+    delegate_to: localhost
+    # become_user: "{{ local_username }}"
+
+  when: "{{ auto_registration }} == false"
+
+# Auto registration
+
+- name: Adding PSK identity and PSK key values to the variables.
+  block:
+
+  - name: Create PSK file.
+    file:
+      path: "{{ zabbix_TLSPSKFile }}"
+      state: touch
+      modification_time: preserve
+      access_time: preserve
+
+  - name: Import PSK identity and key values.
+    include_vars:
+      file: PSK_{{ environment }}.yml
+
+  - name: Set the value of PSK_identity to the vaule of PSK_identity_auto
+    set_fact:
+      PSK_identity: "{{ PSK_identity_auto }}"
+
+  - name: Adding the PSK_key vaule to the TLSPSKFile
+    copy:
+      content: "{{ PSK_key }}"
+      dest: "{{ zabbix_TLSPSKFile }}"
+
+  when: "{{ auto_registration }} == true"
+
+# Edit the zabbix agent config file with templates.
+
+- name: Editing the {{ zabbix_agent_version }}.conf file.
+  src: "template/{{ zabbix_agent_version }}.conf.j2"
+  dest: "/etc/zabbix/{{ zabbix_agent_version }}.conf"
+  mode: 766
+  backup: yes
+
+# Restarting the zabbix agent service.
+
+- name: Restarting the zabbix agent service.
+  service:
+    name: "{{ zabbix_agent_service }}"
+    state: restarted
+  when: zabbix_agent_conf.changed

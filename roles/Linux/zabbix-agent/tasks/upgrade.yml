@@ -1,0 +1,193 @@
+---
+
+# Imports the variables for the chosen domain.
+
+- name: Importing variables for Azure.
+  include_vars: main.yml
+  when: DC == "azure" or DC == "Azure"
+
+- name: Importing variables for on premise.
+  include_vars: on_premise.yml
+  when: DC == "on-premise" or DC == "On-premise"
+
+# Checks if the zabbix agent repository for Azure is available.
+
+- name: Check if the zabbix agent is available.
+  block:
+
+  - name: Checks if the zabbix agent version 2 is available.
+    uri:
+      url: "{{ zabbix_agent2_repo }}"
+    register: url_check_v2
+    failed_when: false
+
+  - name: Checks if the zabbixagent version 1 is available.
+    uri:
+      url: "{{ zabbix_agent_repo }}"
+    register: url_check_v1
+    failed_when: false
+    when: url_check.status == 404
+
+  - name: The zabbix agent is not available in the given repositories.
+    fail:
+      msg: The zabbix agent is not available in the given repositories, check if the zabbix_agent_repo and zabbix_agent2_repo values are correct.
+    when: url_check.status == 404 and url_check2.status == 404
+
+  when: DC == "azure" or DC == "Azure"
+
+# Checks if the zabbix agent repository for on premise is available.
+
+- name: Checks if the zabbix agent version is available.
+  uri:
+    url: "{{ zabbix_agent_repo }}"
+  register: on_premise_url
+  when: DC == "on-premise" or DC == "On-premise"
+
+# Uninstalling the old zabbix agent.
+
+- name: Uninstalling the zabbix agent.
+  package:
+    name: "{{ zabbix_agent_installed }}"
+    state: absent
+
+# Cleanup zabbix directory.
+
+- name: finding the files in the path /etc/zabbix.
+  find:
+    path: /etc/zabbix/
+    file_type: file
+  register: found_files
+
+- name: finding the directorys in the path /etc/zabbix.
+  find:
+    path: /etc/zabbix/
+    file_type: directory
+  register: found_directorys
+
+- name: removing the old zabbix agent files.
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items:
+  - "{{ found_files[files] }}" # or "{{ found_files.files }}"
+  - "{{ found_directorys[files] }}" # or "{{ found_directorys.files }}"
+
+
+# Installing the new zabbix agent.
+
+- name: Installing the zabbix agent.
+  block:
+
+  - name: Installing zabbix agent version 2.
+    package:
+      name: "{{ zabbix_agent2_repo }}"
+      state: present
+    when: url_check_v2.status == 200
+
+  - name: Installing zabbix agent version 1.
+    package:
+      name: "{{ zabbix_agent_repo }}"
+      state: present
+    when: url_check_v2.status == 404 and url_check_v1.status == 200
+
+  when: DC == "azure" or DC == "Azure"
+
+- name: Installing zabbix agent.
+  package:
+    name: "{{ zabbix_agent_repo}}"
+    state: present
+  when: (DC == "on-premise" or DC == "On-premise") and on_premise_url.status == 200
+
+# If auto registration is selected then the specific psk identity and psk key specified on the zabbix server is inserted in the zabbix agent configurations file.
+# If manuel is selected then a new psk key is generated and the psk identity is set to psk-[hostname], those values is then added to the zabbix agent configuration file.
+
+- name: Generate a PSK key and adds the key to a file called {{ zabbix_TLSPSKFile }}
+  block:
+
+  - name: Create PSK file.
+    file:
+      path: "{{ zabbix_TLSPSKFile }}"
+      state: touch
+      modification_time: preserve
+      access_time: preserve
+
+  - name: fetching PSK file from {{ ansible_fqdn }}.
+    fetch:
+      src: "{{ zabbix_TLSPSKFile }}"
+      dest: zabbix-agent-Linux/temporary/{{ ansible_hostname }}
+      flat: yes
+
+  # - name: Get the username runnig the deploy
+  #   command: whoami
+  #   delegate_to: localhost
+  #   become: false
+  #   register: local_user
+  #   changed_when: false
+
+  - name: Generate a PSK key on the Ansible master.
+    shell: "openssl rand -hex 32 > zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+    delegate_to: localhost
+    # become_user: "{{ local_username}}"
+
+  - name: Sending PSK file to {{ ansible_fqdn }}.
+    copy:
+      src: "zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+      dest: "{{ zabbix_TLSPSKFile }}"
+
+  - name: Removing PSK file from ansible master.
+    file:
+      path: "zabbix-agent-Linux/temporary/{{ ansible_hostname }}"
+      state: absent
+    delegate_to: localhost
+    # become_user: "{{ local_username}}"
+
+  when: autoregistration == false
+
+# Auto registration
+
+- name: Adding PSK identity and PSK key values to the variables.
+  block:
+
+  - name: Create PSK file.
+    file:
+      path: "{{ zabbix_TLSPSKFile }}"
+      state: touch
+      modification_time: preserve
+      access_time: preserve
+
+  - name: Import PSK identity and key values.
+    include_vars:
+      file: PSK_{{ environment }}.yml
+
+  - name: Set the vaule of PSK_identity to the vaule of PSK_identity_auto
+    set_fact:
+      PSK_identity: "{{ PSK_identity_auto }}"
+
+  - name: Adding the PSK_key vaule to the TLSPSKFile
+    copy:
+      content: "{{ PSK_key }}"
+      dest: "{{ zabbix_TLSPSKFile }}"
+
+  when: "{{ auto_registration }} == true"
+
+# Edits the zabbix agent config file and restarts the service.
+
+# Edit the zabbix agent config file with templates.
+
+- name: Editing the {{ zabbix_agent_version }}.conf file.
+  src: "template/{{ zabbix_agent_version }}.conf.j2"
+  dest: "/etc/zabbix/{{ zabbix_agent_version }}.conf"
+  mode: 766
+  backup: yes
+
+# Restarting the zabbix agent service.
+
+- name: Restarting the zabbix agent service.
+  service:
+    name: "{{ zabbix_agent_service }}"
+    state: restarted
+  when: zabbix_agent_conf.changed
+
+
+# TODO Test om den gamle konfigurations filen slettes efter en opgradering. tjek om opgradering fra agent 1 til agent 2 har nogle problemmer angående konfigurations filen.
+# Tjek også konfigurations filen i forhold til opgradering fra ældre zabbix agentd (zabbix agent version 4.4) til nyere zabbix agent2 (eks. zabbix agent version 5.0)

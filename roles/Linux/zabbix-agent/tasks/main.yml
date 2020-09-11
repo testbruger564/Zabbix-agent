@@ -1,0 +1,81 @@
+---
+# tasks file for zabbix
+
+- name: check if zabbix_agent2 is installed.
+  command: zabbix_agent2 --version
+  register: zabbix_agentv2
+  failed_when: false
+
+- name: check if zabbix_agentd is installed.
+  command: zabbix_agentd --version
+  register: zabbix_agentv1
+  failed_when: false
+
+- debug:
+    msg: "{{zabbix_agent_installed}}"
+
+- name: block
+  block:
+
+  - name: Checking what version of zabbix agent is installed.
+    package_facts:
+      manager: auto
+
+  - name: check
+    debug:
+      msg: "{{ ansible_facts.packages[zabbix_agent_installed] | map(attribute='version') | list }}"
+    register: package_version
+
+  # - name: filter version
+  #   shell: echo "{{ package_version.msg }}" | sed 's/.*://' | sed 's/+.*//' # TODO Mak filter for redhat
+  #   register: filteret
+
+  - name: filter version debian
+    block:
+
+    - name: filter Debian
+      shell: echo "{{ package_version.msg }}" | sed 's/.*://' | sed 's/+.*//' # TODO Make filter for Debian
+      register: filteret
+
+    # - debug:
+    #     msg: "{{ filteret.stdout }}"
+
+    - name: Save variable with install version.
+      set_fact:
+        installed_version: "{{ filteret.stdout }}"
+
+    when: ansible_os_family == "Debian"
+
+  - name: filter version RedHat
+    block:
+
+    - name: filter RedHat
+      shell: echo "{{ package_version.msg }}" | sed 's/.*://' # TODO Make filter for RedHat
+      register: filteret
+
+    # - debug:
+    #     msg: "{{ filteret.stdout }}"
+
+    - name: Save variable with install version.
+      set_fact:
+        installed_version: "{{ filteret.stdout }}"
+
+    when: ansible_os_family == "RedHat"
+
+  when: zabbix_agent_installed != 'none'
+
+- name: zabbix agent not installed.
+  include_tasks: install.yml
+  when: zabbix_agent_installed == 'none'
+
+# - debug:
+#     var: installed_version
+
+- name: Upgrading zabbix agent.
+  include_tasks: upgrade.yml
+  when: installed_version < zabbix_release
+
+- name: No upgrade needed for zabbix agent.
+  debug:
+    msg: "Your fine"
+  when: installed_version >= zabbix_release
